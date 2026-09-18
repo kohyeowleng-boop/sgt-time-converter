@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>World Market Clock</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f5f5f3;
+    color: #1a1a1a;
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+  .container { width: 100%; max-width: 700px; }
+  h1 { font-size: 22px; font-weight: 500; margin-bottom: 0.4rem; color: #111; }
+  .subtitle { font-size: 14px; color: #555; margin-bottom: 1.5rem; }
+  .cards-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 1.5rem; }
+  .tz-card {
+    background: #fff; border: 0.5px solid #ddd; border-radius: 12px;
+    padding: 1rem 1.25rem; flex: 1; min-width: 180px;
+  }
+  .tz-card.highlight { border-color: #90bde8; background: #f7fbff; }
+  .tz-label { font-size: 13px; color: #444; margin-bottom: 4px; font-weight: 500; }
+  .tz-sublabel { font-size: 11px; color: #999; margin-bottom: 4px; }
+  .tz-time { font-size: 42px; font-weight: 500; color: #111; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .tz-date { font-size: 13px; color: #555; margin-top: 6px; }
+  .tz-status {
+    font-size: 13px; margin-top: 10px; padding: 3px 10px;
+    border-radius: 6px; display: inline-block; font-weight: 500;
+  }
+  .open   { background: #d4f0e0; color: #1a6e40; }
+  .closed { background: #f0f0ee; color: #888; }
+  .pre    { background: #fef3d4; color: #8a5a00; }
+  .session-title { font-size: 14px; color: #444; margin-bottom: 8px; font-weight: 500; }
+  .bar-wrap { position: relative; height: 28px; margin-bottom: 4px; }
+  .bar-track {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 100%; height: 8px; background: #eee; border-radius: 4px;
+  }
+  .bar-fill { position: absolute; top: 0; height: 100%; border-radius: 4px; }
+  .now-line {
+    position: absolute; top: 0; width: 2px; height: 100%;
+    background: #1a1a1a; border-radius: 2px;
+  }
+  .legend { display: flex; gap: 16px; font-size: 13px; color: #555; margin-top: 6px; flex-wrap: wrap; }
+  .legend span { display: flex; align-items: center; gap: 4px; }
+  .leg-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .leg-line { width: 12px; height: 2px; background: #1a1a1a; display: inline-block; }
+  .tick-label {
+    position: absolute; font-size: 11px; font-weight: 500;
+    transform: translateX(-50%); white-space: nowrap; line-height: 1;
+  }
+  .bar-labels { display: flex; justify-content: space-between; font-size: 13px; color: #666; margin-top: 4px; }
+  .dst-note { font-size: 13px; color: #555; margin-top: 1.2rem; line-height: 1.8; }
+  .local-tz-note { font-size: 12px; color: #999; margin-top: 0.4rem; }
+  .sound-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 500; padding: 5px 12px;
+    border-radius: 8px; border: 0.5px solid #ddd; background: #fff;
+    color: #444; cursor: pointer; margin-bottom: 1.25rem;
+  }
+  .sound-btn.on { background: #d4f0e0; color: #1a6e40; border-color: #a9dcc2; }
+  .bell-note { font-size: 12px; color: #999; margin-top: 0.4rem; line-height: 1.6; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #1a1a1a; color: #eee; }
+    h1 { color: #eee; }
+    .subtitle { color: #aaa; }
+    .session-title { color: #aaa; }
+    .tz-card { background: #252525; border-color: #3a3a3a; }
+    .tz-card.highlight { border-color: #2a5a8a; background: #1a2535; }
+    .tz-label { color: #bbb; }
+    .tz-sublabel { color: #666; }
+    .tz-time { color: #f0f0f0; }
+    .tz-date { color: #888; }
+    .closed { background: #2a2a2a; color: #666; }
+    .open   { background: #0d3322; color: #5cd490; }
+    .pre    { background: #2e2500; color: #d4a832; }
+    .bar-track { background: #333; }
+    .now-line { background: #eee; }
+    .leg-line { background: #eee; }
+    .legend { color: #aaa; }
+    .bar-labels { color: #888; }
+    .dst-note { color: #888; }
+    .local-tz-note { color: #555; }
+    .sound-btn { background: #252525; border-color: #3a3a3a; color: #bbb; }
+    .sound-btn.on { background: #0d3322; color: #5cd490; border-color: #1a6e40; }
+    .bell-note { color: #555; }
+    #lon-open-lbl, #lon-close-lbl { color: #7ab8f5; }
+    #ny-open-lbl,  #ny-close-lbl  { color: #5cd4a8; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>World Market Clock</h1>
+  <p class="subtitle">Updates every second · DST auto-adjusted · Follows your device timezone</p>
+
+  <button class="sound-btn" id="sound-toggle" type="button">🔕 Bell: Off</button>
+  <p class="bell-note">When on, a 2-second bell plays automatically at LSE open (08:00 London time) and NYSE/NASDAQ open (09:30 New York time), Monday–Friday. Public holidays aren't accounted for. Browsers block sound until you tap the button once, and the tab needs to stay open to ring.</p>
+
+  <div class="cards-row">
+    <div class="tz-card highlight">
+      <div class="tz-label" id="local-label">Your location</div>
+      <div class="tz-sublabel" id="local-tz-name"></div>
+      <div class="tz-time" id="local-time">—</div>
+      <div class="tz-date" id="local-date">—</div>
+    </div>
+    <div class="tz-card" id="sgt-card">
+      <div class="tz-label">Singapore (SGT, UTC+8)</div>
+      <div class="tz-sublabel">Singapore Standard Time</div>
+      <div class="tz-time" id="sgt-time">—</div>
+      <div class="tz-date" id="sgt-date">—</div>
+    </div>
+    <div class="tz-card">
+      <div class="tz-label" id="lon-label">London</div>
+      <div class="tz-sublabel" id="lon-sublabel"></div>
+      <div class="tz-time" id="lon-time">—</div>
+      <div class="tz-date" id="lon-date">—</div>
+      <span class="tz-status" id="lon-status">—</span>
+    </div>
+    <div class="tz-card">
+      <div class="tz-label" id="ny-label">New York</div>
+      <div class="tz-sublabel" id="ny-sublabel"></div>
+      <div class="tz-time" id="ny-time">—</div>
+      <div class="tz-date" id="ny-date">—</div>
+      <span class="tz-status" id="ny-status">—</span>
+    </div>
+  </div>
+
+  <div>
+    <div class="session-title">Market sessions in your local time (today)</div>
+    <div style="position:relative; height:22px; margin-bottom:2px;">
+      <span class="tick-label" id="lon-open-lbl"  style="color:#1a5a9e;"></span>
+      <span class="tick-label" id="lon-close-lbl" style="color:#1a5a9e;"></span>
+      <span class="tick-label" id="ny-open-lbl"   style="color:#0d6e4f;"></span>
+      <span class="tick-label" id="ny-close-lbl"  style="color:#0d6e4f;"></span>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-track">
+        <div class="bar-fill" id="lon-bar" style="background:#378ADD;"></div>
+        <div class="bar-fill" id="ny-bar"  style="background:#1D9E75;"></div>
+        <div class="now-line" id="now-line"></div>
+      </div>
+    </div>
+    <div class="legend">
+      <span><span class="leg-dot" style="background:#378ADD;"></span>London (LSE)</span>
+      <span><span class="leg-dot" style="background:#1D9E75;"></span>New York (NYSE/NASDAQ)</span>
+      <span><span class="leg-line"></span>Now</span>
+    </div>
+    <div class="bar-labels"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
+  </div>
+
+  <p class="dst-note" id="dst-note"></p>
+  <p class="local-tz-note" id="local-tz-note"></p>
+</div>
+
+<script>
+// --- DST helpers for UK and US ---
+function getLastSunday(y, m) {
+  const d = new Date(y, m + 1, 0);
+  d.setDate(d.getDate() - d.getDay());
+  return d;
+}
+function getNthSunday(y, m, n) {
+  const d = new Date(y, m, 1); let count = 0;
+  while (d.getMonth() === m) {
+    if (d.getDay() === 0) { count++; if (count === n) return new Date(d); }
+    d.setDate(d.getDate() + 1);
+  }
+}
+function isUkDst(d) {
+  return d >= getLastSunday(d.getFullYear(), 2) && d < getLastSunday(d.getFullYear(), 9);
+}
+function isUsDst(d) {
+  return d >= getNthSunday(d.getFullYear(), 2, 2) && d < getNthSunday(d.getFullYear(), 10, 1);
+}
+
+// --- Get UTC offset in minutes for a named timezone at a given moment ---
+function getOffsetMins(ianaZone, date) {
+  // Format the date in the target zone and compare to UTC
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: ianaZone,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  });
+  const parts = fmt.formatToParts(date).reduce((a, p) => { a[p.type] = p.value; return a; }, {});
+  const local = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour % 24, +parts.minute, +parts.second);
+  return Math.round((local - date.getTime()) / 60000);
+}
+
+// --- Format a Date in a given IANA timezone ---
+function fmtInZone(date, ianaZone, opts) {
+  return new Intl.DateTimeFormat('en-SG', { timeZone: ianaZone, ...opts }).format(date);
+}
+
+function pad(n) { return String(n).padStart(2, '0'); }
+
+function fmtTimeInZone(date, ianaZone) {
+  return fmtInZone(date, ianaZone, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+}
+
+function fmtDateInZone(date, ianaZone) {
+  return fmtInZone(date, ianaZone, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function fmtShort(d) {
+  return d.toLocaleDateString('en-SG', { day: 'numeric', month: 'short' });
+}
+
+function dayDiffInZones(date, zoneA, zoneB) {
+  const dayA = fmtInZone(date, zoneA, { day: 'numeric', month: 'numeric', year: 'numeric' });
+  const dayB = fmtInZone(date, zoneB, { day: 'numeric', month: 'numeric', year: 'numeric' });
+  if (dayA === dayB) return 0;
+  // Determine +1 or -1 by comparing UTC midnight offsets
+  const offA = getOffsetMins(zoneA, date);
+  const offB = getOffsetMins(zoneB, date);
+  return offB > offA ? -1 : 1;
+}
+
+function relDateLabel(date, localZone, targetZone) {
+  const diff = dayDiffInZones(date, localZone, targetZone);
+  const base = fmtDateInZone(date, targetZone);
+  if (diff === 1)  return base + ' (tomorrow)';
+  if (diff === -1) return base + ' (yesterday)';
+  return base;
+}
+
+// Friendly short name for a timezone
+function friendlyTzName(ianaZone, date) {
+  try {
+    return new Intl.DateTimeFormat('en-US', { timeZone: ianaZone, timeZoneName: 'short' })
+      .formatToParts(date).find(p => p.type === 'timeZoneName')?.value || ianaZone;
+  } catch { return ianaZone; }
+}
+
+function inRange(cur, open, dur) {
+  const end = (open + dur) % 1440;
+  return open < end ? (cur >= open && cur < end) : (cur >= open || cur < end);
+}
+
+const LOCAL_ZONE  = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const LONDON_ZONE = 'Europe/London';
+const NY_ZONE     = 'America/New_York';
+
+function isWeekdayInZone(date, ianaZone) {
+  const wd = new Intl.DateTimeFormat('en-US', { timeZone: ianaZone, weekday: 'short' }).format(date);
+  return wd !== 'Sat' && wd !== 'Sun';
+}
+
+// --- Trading bell (Web Audio, synthesized — no external files) ---
+let audioCtx = null;
+let soundEnabled = false;
+try { soundEnabled = localStorage.getItem('bellSoundEnabled') === 'true'; } catch (e) {}
+
+function ensureAudioCtx() {
+  if (!audioCtx) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    audioCtx = new Ctx();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+// Three quick strikes with an inharmonic partial series, decaying over ~2s — a synthesized bell, not a recording.
+function playBell() {
+  if (!soundEnabled) return;
+  const ctx = ensureAudioCtx();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    const totalDuration = 2; // seconds
+    const strikeOffsets = [0, 0.35, 0.7];
+    const partials = [1, 1.6, 2.0, 2.45, 3.4];
+    const fundamental = 660;
+    strikeOffsets.forEach(offset => {
+      const remaining = totalDuration - offset;
+      partials.forEach((mult, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = fundamental * mult;
+        const startT = now + offset;
+        const peak = 0.22 / (i + 1);
+        gain.gain.setValueAtTime(0, startT);
+        gain.gain.linearRampToValueAtTime(peak, startT + 0.008);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startT + remaining);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(startT);
+        osc.stop(startT + remaining + 0.05);
+      });
+    });
+  } catch (e) { console.error('Bell playback failed', e); }
+}
+
+const soundBtn = document.getElementById('sound-toggle');
+function updateSoundBtn() {
+  soundBtn.textContent = soundEnabled ? '🔔 Bell: On' : '🔕 Bell: Off';
+  soundBtn.classList.toggle('on', soundEnabled);
+}
+updateSoundBtn();
+soundBtn.addEventListener('click', () => {
+  soundEnabled = !soundEnabled;
+  updateSoundBtn();
+  try { localStorage.setItem('bellSoundEnabled', String(soundEnabled)); } catch (e) {}
+  if (soundEnabled) {
+    ensureAudioCtx(); // unlock audio on this user gesture so later automatic rings can play
+    playBell();        // confirmation chime
+  }
+});
+
+// Tracks the last date (in each market's own zone) the bell fired, so it rings once per open.
+const lonBellFired = { date: null };
+const nyBellFired   = { date: null };
+
+function checkMarketBell(now, zone, openHour, openMinute, firedRef) {
+  const [h, m, s] = fmtTimeInZone(now, zone).split(':').map(Number);
+  if (h !== openHour || m !== openMinute || s > 2) return;
+  if (!isWeekdayInZone(now, zone)) return;
+  const dateStr = fmtInZone(now, zone, { year: 'numeric', month: '2-digit', day: '2-digit' });
+  if (firedRef.date === dateStr) return;
+  firedRef.date = dateStr;
+  playBell();
+}
+
+function tick() {
+  const now = new Date();
+
+  // --- Local card ---
+  const localOffMins = getOffsetMins(LOCAL_ZONE, now);
+  const localOffH    = localOffMins / 60;
+  const localSign    = localOffH >= 0 ? '+' : '−';
+  const localOffStr  = Number.isInteger(localOffH)
+    ? `UTC${localSign}${Math.abs(localOffH)}`
+    : `UTC${localSign}${Math.floor(Math.abs(localOffH))}:${pad(Math.abs(localOffMins) % 60)}`;
+  const tzShort = friendlyTzName(LOCAL_ZONE, now);
+
+  document.getElementById('local-label').textContent   = 'Your location';
+  document.getElementById('local-tz-name').textContent = `${tzShort} · ${localOffStr}`;
+  document.getElementById('local-time').textContent    = fmtTimeInZone(now, LOCAL_ZONE);
+  document.getElementById('local-date').textContent    = fmtDateInZone(now, LOCAL_ZONE);
+
+  // --- Singapore card --- hide if user is already in Singapore
+  const SGT_ZONE = 'Asia/Singapore';
+  const sgtCard = document.getElementById('sgt-card');
+  if (LOCAL_ZONE === SGT_ZONE) {
+    sgtCard.style.display = 'none';
+  } else {
+    sgtCard.style.display = '';
+    document.getElementById('sgt-time').textContent = fmtTimeInZone(now, SGT_ZONE);
+    document.getElementById('sgt-date').textContent = relDateLabel(now, LOCAL_ZONE, SGT_ZONE);
+  }
+
+  // --- London card ---
+  const ukDst    = isUkDst(now);
+  const lonOffH  = ukDst ? 1 : 0;
+  document.getElementById('lon-label').textContent    = ukDst ? 'London (BST, UTC+1)' : 'London (GMT, UTC+0)';
+  document.getElementById('lon-sublabel').textContent = ukDst ? 'British Summer Time' : 'Greenwich Mean Time';
+  document.getElementById('lon-time').textContent     = fmtTimeInZone(now, LONDON_ZONE);
+  document.getElementById('lon-date').textContent     = relDateLabel(now, LOCAL_ZONE, LONDON_ZONE);
+
+  // --- New York card ---
+  const usDst   = isUsDst(now);
+  const nyOffH  = usDst ? -4 : -5;
+  document.getElementById('ny-label').textContent    = usDst ? 'New York (EDT, UTC−4)' : 'New York (EST, UTC−5)';
+  document.getElementById('ny-sublabel').textContent = usDst ? 'Eastern Daylight Time' : 'Eastern Standard Time';
+  document.getElementById('ny-time').textContent     = fmtTimeInZone(now, NY_ZONE);
+  document.getElementById('ny-date').textContent     = relDateLabel(now, LOCAL_ZONE, NY_ZONE);
+
+  // --- Market open/close status ---
+  const lonIsOpen = (() => {
+    const t = fmtTimeInZone(now, LONDON_ZONE);
+    const [h, m] = t.split(':').map(Number);
+    const mins = h * 60 + m;
+    return inRange(mins, 480, 510); // 08:00–16:30
+  })();
+  const lonIsPre = !lonIsOpen && (() => {
+    const t = fmtTimeInZone(now, LONDON_ZONE);
+    const [h, m] = t.split(':').map(Number);
+    return inRange(h * 60 + m, 450, 30);
+  })();
+
+  const nyIsOpen = (() => {
+    const t = fmtTimeInZone(now, NY_ZONE);
+    const [h, m] = t.split(':').map(Number);
+    return inRange(h * 60 + m, 570, 390); // 09:30–16:00
+  })();
+  const nyIsPre = !nyIsOpen && (() => {
+    const t = fmtTimeInZone(now, NY_ZONE);
+    const [h, m] = t.split(':').map(Number);
+    return inRange(h * 60 + m, 540, 30);
+  })();
+
+  const lS = document.getElementById('lon-status');
+  lS.className  = 'tz-status ' + (lonIsOpen ? 'open' : lonIsPre ? 'pre' : 'closed');
+  lS.textContent = lonIsOpen ? 'LSE open' : lonIsPre ? 'Pre-market' : 'Closed';
+
+  const nS = document.getElementById('ny-status');
+  nS.className  = 'tz-status ' + (nyIsOpen ? 'open' : nyIsPre ? 'pre' : 'closed');
+  nS.textContent = nyIsOpen ? 'NYSE/NASDAQ open' : nyIsPre ? 'Pre-market' : 'Closed';
+
+  // --- Trading bell: fires once per weekday at each market's official open ---
+  checkMarketBell(now, LONDON_ZONE, 8, 0, lonBellFired);
+  checkMarketBell(now, NY_ZONE, 9, 30, nyBellFired);
+
+  // --- Bar: convert London & NY session open/close to local timezone minutes ---
+  // local open = market local open converted via UTC
+  const localMins = (() => {
+    const t = fmtTimeInZone(now, LOCAL_ZONE);
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  })();
+
+  // London opens 08:00 London time → in local mins:
+  // offset diff = localOffMins - lonOffMins
+  const lonOffMins = lonOffH * 60;
+  const nyOffMins  = nyOffH  * 60;
+  const localOffMinsCurrent = getOffsetMins(LOCAL_ZONE, now);
+
+  const lonOpenLocal = ((480 + localOffMinsCurrent - lonOffMins) % 1440 + 1440) % 1440;
+  const nyOpenLocal  = ((570 + localOffMinsCurrent - nyOffMins)  % 1440 + 1440) % 1440;
+
+  const pct  = n => ((((n % 1440) + 1440) % 1440) / 1440 * 100).toFixed(3) + '%';
+  const wPct = n => (n / 1440 * 100).toFixed(3) + '%';
+  const fmtM = m => { const n = ((m % 1440) + 1440) % 1440; return pad(Math.floor(n / 60)) + ':' + pad(n % 60); };
+
+  document.getElementById('lon-bar').style.left  = pct(lonOpenLocal);
+  document.getElementById('lon-bar').style.width = wPct(510);
+  document.getElementById('ny-bar').style.left   = pct(nyOpenLocal);
+  document.getElementById('ny-bar').style.width  = wPct(390);
+  document.getElementById('now-line').style.left = pct(localMins);
+
+  const setLbl = (id, mins) => {
+    const el = document.getElementById(id);
+    el.style.left    = pct(mins);
+    el.textContent   = fmtM(mins);
+  };
+  setLbl('lon-open-lbl',  lonOpenLocal);
+  setLbl('lon-close-lbl', lonOpenLocal + 510);
+  setLbl('ny-open-lbl',   nyOpenLocal);
+  setLbl('ny-close-lbl',  nyOpenLocal + 390);
+
+  // --- DST note ---
+  const y = now.getFullYear();
+  let note = ukDst
+    ? 'UK on BST. Reverts to GMT on ' + fmtShort(getLastSunday(y, 9)) + '. '
+    : 'UK on GMT. BST starts ' + fmtShort(getLastSunday(y, 2)) + '. ';
+  note += usDst
+    ? 'US on EDT. Reverts to EST on ' + fmtShort(getNthSunday(y, 10, 1)) + '.'
+    : 'US on EST. EDT starts ' + fmtShort(getNthSunday(y, 2, 2)) + '.';
+  document.getElementById('dst-note').textContent = note;
+  document.getElementById('local-tz-note').textContent = 'Detected timezone: ' + LOCAL_ZONE;
+}
+
+tick();
+setInterval(tick, 1000);
+</script>
+</body>
+</html>
